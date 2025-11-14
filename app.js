@@ -1,4 +1,4 @@
-// app.js - Enhanced with role management
+// app.js - Fixed with proper modal handling
 class GamePulseApp {
     constructor() {
         this.currentSection = 'dashboard';
@@ -10,6 +10,7 @@ class GamePulseApp {
     async init() {
         this.setupEventListeners();
         this.setupNavigation();
+        this.closeModals(); // Ensure modals are closed on startup
         
         setTimeout(async () => {
             if (auth.userProfile) {
@@ -22,6 +23,7 @@ class GamePulseApp {
     }
 
     setupEventListeners() {
+        // Navigation
         document.querySelectorAll('.nav-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -30,23 +32,43 @@ class GamePulseApp {
             });
         });
 
+        // Search functionality
         document.getElementById('search-button').addEventListener('click', () => this.performSearch());
         document.getElementById('game-search-input').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.performSearch();
         });
 
+        // Admin tabs
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 this.showAdminTab(e.target.getAttribute('data-tab'));
             });
         });
 
+        // Modal close functionality - FIXED
+        document.querySelectorAll('.close').forEach(closeBtn => {
+            closeBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.closeModals();
+            });
+        });
+
+        // Close modals when clicking outside
         window.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal')) {
                 this.closeModals();
             }
         });
 
+        // Close modals with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                this.closeModals();
+            }
+        });
+
+        // User menu close when clicking outside
         window.addEventListener('click', (e) => {
             if (!e.target.matches('#user-menu-btn')) {
                 document.querySelector('.user-dropdown')?.classList.remove('show');
@@ -149,7 +171,6 @@ class GamePulseApp {
             const platformStats = await gameDB.getPlatformStats();
             this.updateAdminStats(platformStats);
             
-            // Show owner tools if user is owner
             if (auth.isOwner()) {
                 this.showOwnerTools();
             }
@@ -460,7 +481,6 @@ class GamePulseApp {
         document.getElementById('admin-ai-usage').textContent = stats.aiUsage || 0;
         document.getElementById('admin-platform-health').textContent = `${stats.platformHealth || 100}%`;
         
-        // Update main dashboard stats too
         document.getElementById('total-users').textContent = stats.totalUsers || 0;
         document.getElementById('total-games').textContent = stats.totalGames || 0;
         document.getElementById('db-total-games').textContent = stats.totalGames || 0;
@@ -528,7 +548,6 @@ class GamePulseApp {
     // Owner-specific methods
     async createAdminUser() {
         if (!auth.isOwner()) return;
-        
         this.showNotification('Admin user creation feature would be implemented here');
     }
 
@@ -562,7 +581,6 @@ class GamePulseApp {
 
     manageApiKeys() {
         if (!auth.isOwner()) return;
-        
         this.showNotification('API Key management would be implemented here');
     }
 
@@ -617,7 +635,7 @@ class GamePulseApp {
             image: "🎮"
         };
 
-        this.addGameToCollection(Date.now()); // Using timestamp as ID for demo
+        this.addGameToCollection(Date.now());
         this.closeModals();
     }
 
@@ -680,6 +698,7 @@ class GamePulseApp {
         }
     }
 
+    // FIXED: Proper modal closing
     closeModals() {
         document.querySelectorAll('.modal').forEach(modal => {
             modal.style.display = 'none';
