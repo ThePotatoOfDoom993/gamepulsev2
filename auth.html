@@ -1,0 +1,303 @@
+// auth.js - Fixed authentication with proper flow
+class GamePulseAuth {
+    constructor() {
+        this.currentUser = null;
+        this.userProfile = null;
+        this.init();
+    }
+
+    init() {
+        try {
+            firebase.initializeApp(firebaseConfig);
+            this.auth = firebase.auth();
+            this.db = firebase.firestore();
+            
+            this.setupAuthListeners();
+            this.setupEventListeners();
+        } catch (error) {
+            console.warn("Firebase not configured. Using demo mode.");
+            this.setupDemoMode();
+        }
+    }
+
+    setupAuthListeners() {
+        this.auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                await this.loadUserProfile(user);
+                this.showApp();
+            } else {
+                this.showApp();
+                this.showAuthButton();
+            }
+        });
+    }
+
+    setupEventListeners() {
+        document.getElementById('show-register')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.showRegisterForm();
+        });
+        
+        document.getElementById('show-login')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.showLoginForm();
+        });
+
+        document.getElementById('login-btn')?.addEventListener('click', () => this.login());
+        document.getElementById('register-btn')?.addEventListener('click', () => this.register());
+        document.getElementById('logout-btn')?.addEventListener('click', () => this.logout());
+        document.getElementById('header-login-btn')?.addEventListener('click', () => this.showAuthModal());
+
+        document.querySelectorAll('.close').forEach(closeBtn => {
+            closeBtn.addEventListener('click', () => this.closeModals());
+        });
+
+        document.getElementById('user-menu-btn')?.addEventListener('click', () => this.toggleUserMenu());
+    }
+
+    async login() {
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+
+        if (!email || !password) {
+            this.showNotification('Please enter both email and password', 'error');
+            return;
+        }
+
+        try {
+            // Auto-login for owner account
+            if (email === OWNER_ACCOUNT.email && password === OWNER_ACCOUNT.password) {
+                const userCredential = await this.auth.signInWithEmailAndPassword(email, password);
+                this.closeModals();
+                return;
+            }
+
+            const userCredential = await this.auth.signInWithEmailAndPassword(email, password);
+            this.closeModals();
+        } catch (error) {
+            this.showNotification('Login failed: ' + error.message, 'error');
+        }
+    }
+
+    async register() {
+        const name = document.getElementById('register-name').value;
+        const email = document.getElementById('register-email').value;
+        const password = document.getElementById('register-password').value;
+        const roleElement = document.querySelector('input[name="role"]:checked');
+        
+        if (!name || !email || !password || !roleElement) {
+            this.showNotification('Please fill all fields', 'error');
+            return;
+        }
+
+        const role = roleElement.value;
+
+        try {
+            const userCredential = await this.auth.createUserWithEmailAndPassword(email, password);
+            await this.createUserProfile(userCredential.user, name, role);
+            this.closeModals();
+        } catch (error) {
+            this.showNotification('Registration failed: ' + error.message, 'error');
+        }
+    }
+
+    async createUserProfile(user, name, role) {
+        const userProfile = {
+            uid: user.uid,
+            email: user.email,
+            displayName: name,
+            role: role,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            lastLogin: firebase.firestore.FieldValue.serverTimestamp(),
+            preferences: {},
+            stats: this.getDefaultStats(role)
+        };
+
+        await this.db.collection('users').doc(user.uid).set(userProfile);
+    }
+
+    async loadUserProfile(user) {
+        try {
+            // Auto-create owner profile if logging in as owner
+            if (user.email === OWNER_ACCOUNT.email) {
+                const doc = await this.db.collection('users').doc(user.uid).get();
+                if (!doc.exists) {
+                    await this.createUserProfile(user, OWNER_ACCOUNT.displayName, OWNER_ACCOUNT.role);
+                }
+            }
+
+            const doc = await this.db.collection('users').doc(user.uid).get();
+            if (doc.exists) {
+                this.userProfile = doc.data();
+                this.currentUser = user;
+                this.updateUI();
+            }
+        } catch (error) {
+            console.error("Error loading user profile:", error);
+        }
+    }
+
+    getDefaultStats(role) {
+        const baseStats = { joinDate: new Date().toISOString(), aiUsage: 0 };
+        switch (role) {
+            case ROLES.GAMER: return { ...baseStats, gamesCount: 0, totalPlaytime: 0, achievements: 0 };
+            case ROLES.CONTENT_CREATOR: return { ...baseStats, contentCount: 0, totalViews: 0, engagement: 0 };
+            case ROLES.TEACHER: return { ...baseStats, studentsCount: 0, resourcesCount: 0, progressRate: 0 };
+            case ROLES.ADMIN: return { ...baseStats, managedUsers: 0, platformActions: 0 };
+            case ROLES.OWNER: return { ...baseStats, platformRevenue: 0, totalUsers: 0 };
+            default: return baseStats;
+        }
+    }
+
+    async logout() {
+        try {
+            await this.auth.signOut();
+            this.currentUser = null;
+            this.userProfile = null;
+            this.updateUI();
+        } catch (error) {
+            console.error("Logout error:", error);
+        }
+    }
+
+    updateUI() {
+        if (this.userProfile) {
+            this.showLoggedInState();
+        } else {
+            this.showLoggedOutState();
+        }
+    }
+
+    showLoggedInState() {
+        document.getElementById('header-login-btn').style.display = 'none';
+        document.getElementById('user-info').style.display = 'flex';
+        
+        document.getElementById('user-name').textContent = this.userProfile.displayName;
+        document.getElementById('dropdown-name').textContent = this.userProfile.displayName;
+        document.getElementById('greeting-name').textContent = this.userProfile.displayName;
+        
+        this.updateRoleDisplay();
+        this.toggleAdminFeatures();
+        this.showRoleDashboard();
+
+        if (window.app) {
+            window.app.initializeRoleFeatures();
+        }
+    }
+
+    showLoggedOutState() {
+        document.getElementById('header-login-btn').style.display = 'block';
+        document.getElementById('user-info').style.display = 'none';
+        this.showPublicDashboard();
+    }
+
+    showPublicDashboard() {
+        document.querySelectorAll('.role-dashboard').forEach(dashboard => {
+            dashboard.style.display = 'none';
+        });
+        document.getElementById('public-dashboard').style.display = 'block';
+        
+        document.getElementById('greeting-name').textContent = 'Gamer';
+        document.getElementById('role-welcome').textContent = 'Welcome to GamePulse! Sign in to access all features.';
+    }
+
+    updateRoleDisplay() {
+        const role = this.userProfile.role;
+        const roleBadge = document.getElementById('user-role-badge');
+        const dropdownRole = document.getElementById('dropdown-role');
+        const roleWelcome = document.getElementById('role-welcome');
+        
+        roleBadge.textContent = ROLE_DISPLAY_NAMES[role];
+        roleBadge.style.background = ROLE_COLORS[role];
+        dropdownRole.textContent = ROLE_DISPLAY_NAMES[role];
+        dropdownRole.className = `role-tag ${role}`;
+        
+        const welcomeMessages = {
+            [ROLES.GAMER]: "Ready to discover your next favorite game?",
+            [ROLES.CONTENT_CREATOR]: "Create amazing gaming content and grow your audience!",
+            [ROLES.TEACHER]: "Make learning fun with educational gaming resources!",
+            [ROLES.ADMIN]: "Manage the platform and help our community grow!",
+            [ROLES.OWNER]: "Welcome back, Owner! The platform is running smoothly."
+        };
+        roleWelcome.textContent = welcomeMessages[role] || "Welcome to GamePulse!";
+    }
+
+    toggleAdminFeatures() {
+        const isAdmin = [ROLES.ADMIN, ROLES.OWNER].includes(this.userProfile.role);
+        document.querySelectorAll('.admin-only').forEach(el => {
+            el.style.display = isAdmin ? 'flex' : 'none';
+        });
+
+        if (this.userProfile.role === ROLES.OWNER) {
+            document.querySelectorAll('.owner-only').forEach(el => {
+                el.style.display = 'block';
+            });
+        }
+    }
+
+    showRoleDashboard() {
+        document.querySelectorAll('.role-dashboard').forEach(dashboard => {
+            dashboard.style.display = 'none';
+        });
+        const currentDashboard = document.getElementById(`${this.userProfile.role}-dashboard`);
+        if (currentDashboard) currentDashboard.style.display = 'block';
+    }
+
+    showAuthModal() {
+        document.getElementById('auth-modal').style.display = 'flex';
+        this.showLoginForm();
+    }
+
+    showApp() {
+        document.getElementById('app').style.display = 'block';
+    }
+
+    showLoginForm() {
+        document.getElementById('login-form').classList.add('active');
+        document.getElementById('register-form').classList.remove('active');
+    }
+
+    showRegisterForm() {
+        document.getElementById('register-form').classList.add('active');
+        document.getElementById('login-form').classList.remove('active');
+    }
+
+    closeModals() {
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.style.display = 'none';
+        });
+    }
+
+    toggleUserMenu() {
+        const dropdown = document.querySelector('.user-dropdown');
+        dropdown.classList.toggle('show');
+    }
+
+    showNotification(message, type = 'success') {
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 3000);
+    }
+
+    setupDemoMode() {
+        console.log("Running in demo mode");
+        this.showLoggedOutState();
+    }
+
+    hasPermission(permission) {
+        if (!this.userProfile) return false;
+        if (this.userProfile.role === ROLES.OWNER) return true;
+        const permissions = ROLE_PERMISSIONS[this.userProfile.role] || [];
+        return permissions.includes(permission) || permissions.includes('all');
+    }
+
+    isGamer() { return this.userProfile?.role === ROLES.GAMER; }
+    isContentCreator() { return this.userProfile?.role === ROLES.CONTENT_CREATOR; }
+    isTeacher() { return this.userProfile?.role === ROLES.TEACHER; }
+    isAdmin() { return [ROLES.ADMIN, ROLES.OWNER].includes(this.userProfile?.role); }
+    isOwner() { return this.userProfile?.role === ROLES.OWNER; }
+}
+
+const auth = new GamePulseAuth();

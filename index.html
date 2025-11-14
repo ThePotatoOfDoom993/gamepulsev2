@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GamePulse 🎮 - AI Gaming Platform</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="GamePulse">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@google/generative-ai/dist/generative-ai.js"></script>
+</head>
+<body>
+    <div id="auth-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>🎮 Welcome to GamePulse</h2>
+            <div class="auth-forms">
+                <div id="login-form" class="auth-form active">
+                    <h3>Login to Your Account</h3>
+                    <input type="email" id="login-email" placeholder="Email" required>
+                    <input type="password" id="login-password" placeholder="Password" required>
+                    <button id="login-btn" class="auth-button">Login</button>
+                    <p class="auth-switch">Don't have an account? <a href="#" id="show-register">Sign Up</a></p>
+                </div>
+
+                <div id="register-form" class="auth-form">
+                    <h3>Create Your Account</h3>
+                    <input type="text" id="register-name" placeholder="Full Name" required>
+                    <input type="email" id="register-email" placeholder="Email" required>
+                    <input type="password" id="register-password" placeholder="Password" required>
+                    
+                    <div class="role-selection">
+                        <h4>Select Your Role:</h4>
+                        <div class="role-options">
+                            <label class="role-option">
+                                <input type="radio" name="role" value="gamer" checked>
+                                <div class="role-card">
+                                    <span class="role-icon">🎮</span>
+                                    <span class="role-name">Gamer</span>
+                                    <small>Play, track, and discover games</small>
+                                </div>
+                            </label>
+                            <label class="role-option">
+                                <input type="radio" name="role" value="content-creator">
+                                <div class="role-card">
+                                    <span class="role-icon">🎥</span>
+                                    <span class="role-name">Content Creator</span>
+                                    <small>Create and share gaming content</small>
+                                </div>
+                            </label>
+                            <label class="role-option">
+                                <input type="radio" name="role" value="teacher">
+                                <div class="role-card">
+                                    <span class="role-icon">👨‍🏫</span>
+                                    <span class="role-name">Teacher</span>
+                                    <small>Educational gaming resources</small>
+                                </div>
+                            </label>
+                            <label class="role-option">
+                                <input type="radio" name="role" value="admin">
+                                <div class="role-card">
+                                    <span class="role-icon">⚙️</span>
+                                    <span class="role-name">Admin</span>
+                                    <small>Platform management</small>
+                                </div>
+                            </label>
+                            <label class="role-option">
+                                <input type="radio" name="role" value="owner">
+                                <div class="role-card">
+                                    <span class="role-icon">👑</span>
+                                    <span class="role-name">Owner</span>
+                                    <small>Full platform control</small>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <button id="register-btn" class="auth-button">Create Account</button>
+                    <p class="auth-switch">Already have an account? <a href="#" id="show-login">Login</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="app" class="app-container">
+        <header class="main-header">
+            <div class="header-content">
+                <div class="header-left">
+                    <h1 class="logo">🎮 GamePulse</h1>
+                    <nav class="main-nav">
+                        <a href="#dashboard" class="nav-link active" data-section="dashboard">Dashboard</a>
+                        <a href="#games" class="nav-link" data-section="games">Games</a>
+                        <a href="#community" class="nav-link" data-section="community">Community</a>
+                        <a href="#content" class="nav-link" data-section="content">Content</a>
+                        <a href="#admin" class="nav-link admin-only" data-section="admin" style="display: none;">Admin</a>
+                    </nav>
+                </div>
+                
+                <div class="header-right">
+                    <button id="header-login-btn" class="auth-header-btn">Login</button>
+                    <div id="user-info" class="user-info" style="display: none;">
+                        <span id="user-role-badge" class="role-badge"></span>
+                        <span id="user-name" class="user-name"></span>
+                        <div class="user-menu">
+                            <button id="user-menu-btn">👤</button>
+                            <div class="user-dropdown">
+                                <div class="user-profile">
+                                    <strong id="dropdown-name"></strong>
+                                    <span id="dropdown-role" class="role-tag"></span>
+                                </div>
+                                <a href="#profile" class="dropdown-item" data-section="profile">Profile</a>
+                                <a href="#settings" class="dropdown-item" data-section="settings">Settings</a>
+                                <button id="logout-btn" class="dropdown-item logout">Logout</button>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="ai-chat-toggle" class="ai-btn">🤖 AI Assistant</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <section id="dashboard-section" class="content-section active">
+                <div class="dashboard-header">
+                    <h2>Welcome, <span id="greeting-name"></span>!</h2>
+                    <p id="role-welcome" class="role-welcome"></p>
+                </div>
+
+                <div class="dashboard-content">
+                    <div id="public-dashboard" class="role-dashboard">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon">🎮</div>
+                                <div class="stat-info">
+                                    <h3>Games in Library</h3>
+                                    <span id="games-count" class="stat-number">0</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">⏱️</div>
+                                <div class="stat-info">
+                                    <h3>Total Playtime</h3>
+                                    <span id="playtime-total" class="stat-number">0h</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">🏆</div>
+                                <div class="stat-info">
+                                    <h3>Achievements</h3>
+                                    <span id="achievements-count" class="stat-number">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="dashboard-actions">
+                            <button class="action-btn" onclick="app.showSection('games')">
+                                <span class="action-icon">🔍</span>
+                                Discover Games
+                            </button>
+                            <button class="action-btn protected-feature" onclick="auth.showAuthModal()">
+                                <span class="action-icon">➕</span>
+                                Track New Game
+                            </button>
+                            <button class="action-btn" onclick="aiChat.askForRecommendations({})">
+                                <span class="action-icon">🤖</span>
+                                Get AI Recommendations
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="gamer-dashboard" class="role-dashboard" style="display: none;">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon">🎮</div>
+                                <div class="stat-info">
+                                    <h3>Games in Library</h3>
+                                    <span id="gamer-games-count" class="stat-number">0</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">⏱️</div>
+                                <div class="stat-info">
+                                    <h3>Total Playtime</h3>
+                                    <span id="gamer-playtime-total" class="stat-number">0h</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">🏆</div>
+                                <div class="stat-info">
+                                    <h3>Achievements</h3>
+                                    <span id="gamer-achievements-count" class="stat-number">0</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="dashboard-actions">
+                            <button class="action-btn" onclick="app.showSection('games')">
+                                <span class="action-icon">🔍</span>
+                                Discover Games
+                            </button>
+                            <button class="action-btn" onclick="app.showAddGameModal()">
+                                <span class="action-icon">➕</span>
+                                Track New Game
+                            </button>
+                            <button class="action-btn" onclick="aiChat.askForRecommendations({})">
+                                <span class="action-icon">🤖</span>
+                                Get AI Recommendations
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="content-creator-dashboard" class="role-dashboard" style="display: none;">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon">🎥</div>
+                                <div class="stat-info">
+                                    <h3>Content Pieces</h3>
+                                    <span id="content-count" class="stat-number">0</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">👁️</div>
+                                <div class="stat-info">
+                                    <h3>Total Views</h3>
+                                    <span id="views-total" class="stat-number">0</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">❤️</div>
+                                <div class="stat-info">
+                                    <h3>Engagement</h3>
+                                    <span id="engagement-rate" class="stat-number">0%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="dashboard-actions">
+                            <button class="action-btn" onclick="app.showSection('content')">
+                                <span class="action-icon">📝</span>
+                                Create Content
+                            </button>
+                            <button class="action-btn" onclick="app.analyzeContent()">
+                                <span class="action-icon">📊</span>
+                                Analytics
+                            </button>
+                            <button class="action-btn" onclick="aiChat.getContentIdeas()">
+                                <span class="action-icon">🤖</span>
+                                AI Content Ideas
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="teacher-dashboard" class="role-dashboard" style="display: none;">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon">👨‍🏫</div>
+                                <div class="stat-info">
+                                    <h3>Students</h3>
+                                    <span id="students-count" class="stat-number">0</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">📚</div>
+                                <div class="stat-info">
+                                    <h3>Learning Resources</h3>
+                                    <span id="resources-count" class="stat-number">0</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">🎯</div>
+                                <div class="stat-info">
+                                    <h3>Progress Rate</h3>
+                                    <span id="progress-rate" class="stat-number">0%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="dashboard-actions">
+                            <button class="action-btn" onclick="app.manageStudents()">
+                                <span class="action-icon">👥</span>
+                                Manage Students
+                            </button>
+                            <button class="action-btn" onclick="app.createLesson()">
+                                <span class="action-icon">📖</span>
+                                Create Lesson
+                            </button>
+                            <button class="action-btn" onclick="aiChat.getEducationalGames()">
+                                <span class="action-icon">🤖</span>
+                                AI Educational Tips
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="admin-dashboard" class="role-dashboard" style="display: none;">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon">👥</div>
+                                <div class="stat-info">
+                                    <h3>Total Users</h3>
+                                    <span id="total-users" class="stat-number">0</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">🎮</div>
+                                <div class="stat-info">
+                                    <h3>Games in DB</h3>
+                                    <span id="total-games" class="stat-number">0</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">📊</div>
+                                <div class="stat-info">
+                                    <h3>Platform Health</h3>
+                                    <span id="platform-health" class="stat-number">100%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="dashboard-actions">
+                            <button class="action-btn" onclick="app.showSection('admin')">
+                                <span class="action-icon">⚙️</span>
+                                Admin Panel
+                            </button>
+                            <button class="action-btn" onclick="app.manageUsers()">
+                                <span class="action-icon">👥</span>
+                                Manage Users
+                            </button>
+                            <button class="action-btn" onclick="app.viewAnalytics()">
+                                <span class="action-icon">📈</span>
+                                Platform Analytics
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="owner-dashboard" class="role-dashboard" style="display: none;">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon">👑</div>
+                                <div class="stat-info">
+                                    <h3>Platform Revenue</h3>
+                                    <span id="platform-revenue" class="stat-number">$0</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">👥</div>
+                                <div class="stat-info">
+                                    <h3>Total Users</h3>
+                                    <span id="owner-total-users" class="stat-number">0</span>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon">🚀</div>
+                                <div class="stat-info">
+                                    <h3>Growth Rate</h3>
+                                    <span id="growth-rate" class="stat-number">0%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="dashboard-actions">
+                            <button class="action-btn" onclick="app.showSection('admin')">
+                                <span class="action-icon">👑</span>
+                                Owner Panel
+                            </button>
+                            <button class="action-btn" onclick="app.exportPlatformData()">
+                                <span class="action-icon">📤</span>
+                                Export Data
+                            </button>
+                            <button class="action-btn" onclick="app.manageApiKeys()">
+                                <span class="action-icon">🔑</span>
+                                Manage API Keys
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="games-section" class="content-section">
+                <div class="section-header">
+                    <h2>🎮 Game Library</h2>
+                    <div class="section-actions">
+                        <div class="search-container">
+                            <input type="text" id="game-search-input" placeholder="Search games...">
+                            <button id="search-button">🔍</button>
+                        </div>
+                        <button class="primary-btn protected-feature" onclick="auth.showAuthModal()">+ Add Game</button>
+                    </div>
+                </div>
+                <div id="games-container" class="games-grid"></div>
+            </section>
+
+            <section id="community-section" class="content-section">
+                <div class="section-header">
+                    <h2>👥 Community</h2>
+                </div>
+                <div class="community-content">
+                    <div class="community-stats">
+                        <div class="community-card">
+                            <h3>Active Gamers</h3>
+                            <span class="stat-large" id="active-gamers">0</span>
+                        </div>
+                        <div class="community-card">
+                            <h3>Content Creators</h3>
+                            <span class="stat-large" id="active-creators">0</span>
+                        </div>
+                        <div class="community-card">
+                            <h3>Teachers</h3>
+                            <span class="stat-large" id="active-teachers">0</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="content-section" class="content-section">
+                <div class="section-header">
+                    <h2>🎥 Content Hub</h2>
+                    <button class="primary-btn protected-feature" onclick="auth.showAuthModal()">+ Create Content</button>
+                </div>
+                <div id="content-container" class="content-grid"></div>
+            </section>
+
+            <section id="admin-section" class="content-section">
+                <div class="section-header">
+                    <h2>⚙️ Admin Panel</h2>
+                    <div class="admin-badge" id="admin-level-badge">Admin</div>
+                </div>
+                
+                <div class="admin-content">
+                    <div class="admin-tabs">
+                        <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+                        <button class="tab-btn" data-tab="users">User Management</button>
+                        <button class="tab-btn" data-tab="games-db">Games Database</button>
+                        <button class="tab-btn" data-tab="analytics">Analytics</button>
+                        <button class="tab-btn" data-tab="settings">Platform Settings</button>
+                        <button class="tab-btn owner-only" data-tab="owner" style="display: none;">Owner Tools</button>
+                    </div>
+                    
+                    <div id="dashboard-tab" class="tab-content active">
+                        <div class="admin-stats-grid">
+                            <div class="admin-stat-card">
+                                <div class="admin-stat-icon">👥</div>
+                                <div class="admin-stat-info">
+                                    <h3>Total Users</h3>
+                                    <span id="admin-total-users" class="admin-stat-number">0</span>
+                                </div>
+                            </div>
+                            <div class="admin-stat-card">
+                                <div class="admin-stat-icon">🎮</div>
+                                <div class="admin-stat-info">
+                                    <h3>Games Tracked</h3>
+                                    <span id="admin-total-games" class="admin-stat-number">0</span>
+                                </div>
+                            </div>
+                            <div class="admin-stat-card">
+                                <div class="admin-stat-icon">🤖</div>
+                                <div class="admin-stat-info">
+                                    <h3>AI Usage</h3>
+                                    <span id="admin-ai-usage" class="admin-stat-number">0</span>
+                                </div>
+                            </div>
+                            <div class="admin-stat-card">
+                                <div class="admin-stat-icon">📊</div>
+                                <div class="admin-stat-info">
+                                    <h3>Platform Health</h3>
+                                    <span id="admin-platform-health" class="admin-stat-number">100%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="admin-quick-actions">
+                            <h3>Quick Actions</h3>
+                            <div class="action-buttons">
+                                <button class="admin-action-btn" onclick="app.manageUsers()">
+                                    <span class="action-icon">👥</span>
+                                    Manage Users
+                                </button>
+                                <button class="admin-action-btn" onclick="app.viewAnalytics()">
+                                    <span class="action-icon">📈</span>
+                                    View Analytics
+                                </button>
+                                <button class="admin-action-btn" onclick="app.manageGamesDB()">
+                                    <span class="action-icon">🎮</span>
+                                    Manage Games
+                                </button>
+                                <button class="admin-action-btn owner-only" onclick="app.ownerTools()" style="display: none;">
+                                    <span class="action-icon">👑</span>
+                                    Owner Tools
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="users-tab" class="tab-content">
+                        <div class="tab-header">
+                            <h3>User Management</h3>
+                            <div class="user-filters">
+                                <select id="user-role-filter">
+                                    <option value="all">All Roles</option>
+                                    <option value="gamer">Gamers</option>
+                                    <option value="content-creator">Content Creators</option>
+                                    <option value="teacher">Teachers</option>
+                                    <option value="admin">Admins</option>
+                                    <option value="owner">Owners</option>
+                                </select>
+                                <input type="text" id="user-search" placeholder="Search users...">
+                            </div>
+                        </div>
+                        <div id="users-list" class="admin-list"></div>
+                    </div>
+                    
+                    <div id="games-db-tab" class="tab-content">
+                        <div class="tab-header">
+                            <h3>Games Database</h3>
+                            <button class="primary-btn" onclick="app.addGameToDB()">+ Add Game</button>
+                        </div>
+                        <div class="games-db-content">
+                            <div class="db-stats">
+                                <span>Total Games: <strong id="db-total-games">0</strong></span>
+                            </div>
+                            <div id="games-db-list" class="games-db-list"></div>
+                        </div>
+                    </div>
+                    
+                    <div id="analytics-tab" class="tab-content">
+                        <h3>Platform Analytics</h3>
+                        <div class="analytics-grid">
+                            <div class="analytics-card">
+                                <h4>User Growth</h4>
+                                <div class="chart-placeholder">
+                                    <p>User growth chart will be displayed here</p>
+                                </div>
+                            </div>
+                            <div class="analytics-card">
+                                <h4>Role Distribution</h4>
+                                <div class="chart-placeholder">
+                                    <p>Role distribution chart will be displayed here</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="settings-tab" class="tab-content">
+                        <h3>Platform Settings</h3>
+                        <div class="settings-form">
+                            <div class="setting-group">
+                                <label for="ai-usage-limit">AI Usage Limit (per user per day)</label>
+                                <input type="number" id="ai-usage-limit" value="100" min="10" max="1000">
+                            </div>
+                            <div class="setting-group">
+                                <label for="max-games-per-user">Max Games Per User</label>
+                                <input type="number" id="max-games-per-user" value="1000" min="100" max="10000">
+                            </div>
+                            <button class="primary-btn" onclick="app.savePlatformSettings()">Save Settings</button>
+                        </div>
+                    </div>
+                    
+                    <div id="owner-tab" class="tab-content">
+                        <h3>👑 Owner Tools</h3>
+                        <div class="owner-actions">
+                            <div class="owner-action-group">
+                                <h4>Platform Management</h4>
+                                <button class="owner-action-btn" onclick="app.exportPlatformData()">
+                                    <span class="action-icon">📤</span>
+                                    Export Platform Data
+                                </button>
+                                <button class="owner-action-btn" onclick="app.manageApiKeys()">
+                                    <span class="action-icon">🔑</span>
+                                    Manage API Keys
+                                </button>
+                            </div>
+                            
+                            <div class="owner-action-group">
+                                <h4>User Management</h4>
+                                <button class="owner-action-btn" onclick="app.createAdminUser()">
+                                    <span class="action-icon">➕</span>
+                                    Create Admin User
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <div id="ai-chat-widget" class="chat-widget">
+            <div class="chat-header">
+                <span>🤖 GamePulse AI</span>
+                <button id="close-chat">×</button>
+            </div>
+            <div id="chat-messages" class="chat-messages">
+                <div class="message ai">
+                    Hello! I'm your GamePulse AI assistant. I can help you with game recommendations, content ideas, educational resources, and platform management!
+                </div>
+            </div>
+            <div class="chat-input-container">
+                <input type="text" id="chat-input" placeholder="Ask me anything...">
+                <button id="send-message">Send</button>
+            </div>
+        </div>
+
+        <div id="add-game-modal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>Add New Game</h3>
+                <form id="add-game-form">
+                    <input type="text" id="game-title" placeholder="Game Title" required>
+                    <select id="game-genre" required>
+                        <option value="">Select Genre</option>
+                        <option value="Action">Action</option>
+                        <option value="Adventure">Adventure</option>
+                        <option value="RPG">RPG</option>
+                        <option value="Strategy">Strategy</option>
+                        <option value="Sports">Sports</option>
+                    </select>
+                    <textarea id="game-notes" placeholder="Notes (optional)"></textarea>
+                    <button type="submit" class="primary-btn">Add to Library</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="gemini-ai.js"></script>
+    <script src="database.js"></script>
+    <script src="auth.js"></script>
+    <script src="ai-chat.js"></script>
+    <script src="app.js"></script>
+    <script src="pwa.js"></script>
+</body>
+</html>
